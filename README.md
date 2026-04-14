@@ -133,10 +133,6 @@ streamlit run app/app.py
 
 ---
 
-## 👨‍💻 Author
 
-Your Name
-
----
 
 ## ⭐ If you like this project, give it a star!
