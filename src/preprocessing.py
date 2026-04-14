@@ -49,3 +49,4 @@ def preprocess_data(df, is_training=True, encoders=None, scaler=None):
         X_scaled = scaler.transform(X)
 
     return X_scaled, y, encoders, scaler
+# Data preprocessing pipeline for cybersecurity dataset
