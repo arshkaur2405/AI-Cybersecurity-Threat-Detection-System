@@ -1,133 +1,94 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import time
 import os
+import plotly.express as px
 
-# -----------------------------
-# PAGE CONFIG
-# -----------------------------
-st.set_page_config(page_title="AI Threat Detection SOC", layout="wide")
+st.set_page_config(page_title="AI Threat Detection", layout="wide")
 
-st.title("🛡️ AI-Powered Cybersecurity Threat Detection System")
+st.title("🛡️ AI Cybersecurity Threat Detection")
 
-# -----------------------------
-# PATH HANDLING (IMPORTANT FIX)
-# -----------------------------
+# Paths
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
 MODEL_PATH = os.path.join(BASE_DIR, "models", "threat_model.pkl")
 ENCODER_PATH = os.path.join(BASE_DIR, "models", "encoders.pkl")
 SCALER_PATH = os.path.join(BASE_DIR, "models", "scaler.pkl")
-DATA_PATH = os.path.join(BASE_DIR, "data", "UNSW_NB15_training-set.csv")
+DATA_PATH = os.path.join(BASE_DIR, "data", "UNSW_NB15_testing-set.csv")
 
-# -----------------------------
-# LOAD MODEL
-# -----------------------------
+# Load model safely
 @st.cache_resource
 def load_assets():
-    model = joblib.load(MODEL_PATH)
-    encoders = joblib.load(ENCODER_PATH)
-    scaler = joblib.load(SCALER_PATH)
-    return model, encoders, scaler
+    try:
+        model = joblib.load(MODEL_PATH)
+        encoders = joblib.load(ENCODER_PATH)
+        scaler = joblib.load(SCALER_PATH)
+        return model, encoders, scaler
+    except:
+        return None, None, None
 
 model, encoders, scaler = load_assets()
 
-# -----------------------------
-# SIDEBAR
-# -----------------------------
-st.sidebar.header("⚙️ Simulation Settings")
-sim_speed = st.sidebar.slider("Simulation Speed (seconds)", 0.1, 3.0, 1.0)
+# Load data
+try:
+    data = pd.read_csv(DATA_PATH).sample(50)
+except:
+    st.error("Dataset not found!")
+    st.stop()
 
-# -----------------------------
-# LOAD DATA
-# -----------------------------
-data = pd.read_csv(DATA_PATH).sample(50)
+# Button
+if st.button("▶ Run Detection"):
 
-# -----------------------------
-# UI METRICS
-# -----------------------------
-col1, col2, col3 = st.columns(3)
-total_packets = col1.empty()
-threat_count = col2.empty()
-system_status = col3.empty()
+    if model is None:
+        st.error("Model not loaded properly!")
+        st.stop()
 
-# -----------------------------
-# LOG DISPLAY
-# -----------------------------
-st.subheader("📡 Live Network Traffic Logs")
-log_placeholder = st.empty()
-
-# -----------------------------
-# SIMULATION BUTTON
-# -----------------------------
-logs = []
-malicious_count = 0
-
-if st.button("▶ Start Simulation"):
+    malicious_count = 0
+    threat_history = []
 
     for i, row in data.iterrows():
 
-        # -----------------------------
-        # PREPROCESS SINGLE ROW
-        # -----------------------------
         features = row.drop(['label', 'attack_cat', 'id'], errors='ignore')
 
-        # Encode categorical columns
         for col in ['proto', 'service', 'state']:
             if col in features:
                 try:
                     features[col] = encoders[col].transform([str(features[col])])[0]
                 except:
-                    features[col] = -1  # unknown value
+                    features[col] = -1
 
-        # Convert to DataFrame
-        X_input = pd.DataFrame([features])
+        X = pd.DataFrame([features])
+        X_scaled = scaler.transform(X)
 
-        # Scale
-        X_scaled = scaler.transform(X_input)
+        pred = model.predict(X_scaled)[0]
 
-        # -----------------------------
-        # PREDICTION
-        # -----------------------------
-        prediction = model.predict(X_scaled)[0]
-        confidence = model.predict_proba(X_scaled).max()
-
-        status = "⚠️ ATTACK" if prediction == 1 else "✅ NORMAL"
-
-        if prediction == 1:
+        if pred == 1:
             malicious_count += 1
-            st.error("🚨 THREAT DETECTED!")
 
-        # -----------------------------
-        # LOG ENTRY
-        # -----------------------------
-        log_entry = {
-            "Time": time.strftime("%H:%M:%S"),
-            "Protocol": row.get("proto", "N/A"),
-            "Service": row.get("service", "N/A"),
-            "Status": status,
-            "Confidence": f"{confidence:.2%}"
-        }
+        threat_history.append(malicious_count)
 
-        logs.insert(0, log_entry)
+    # -----------------------------
+    # SHOW GRAPHS (FINAL)
+    # -----------------------------
+    st.subheader("📊 Threat Analytics")
 
-        # -----------------------------
-        # UPDATE METRICS
-        # -----------------------------
-        total_packets.metric("Total Packets", i + 1)
-        threat_count.metric("Threats Detected", malicious_count)
-        system_status.metric("System Status", "ACTIVE 🟢")
+    # Pie Chart
+    pie_df = pd.DataFrame({
+        "Type": ["Normal", "Attack"],
+        "Count": [len(data) - malicious_count, malicious_count]
+    })
 
-        # -----------------------------
-        # SHOW LOG TABLE
-        # -----------------------------
-        log_placeholder.dataframe(pd.DataFrame(logs).head(10))
+    st.plotly_chart(px.pie(pie_df, names="Type", values="Count"),
+                    use_container_width=True)
 
-        time.sleep(sim_speed)
+    # Line Chart
+    line_df = pd.DataFrame({
+        "Time": list(range(len(threat_history))),
+        "Threat Count": threat_history
+    })
 
-# -----------------------------
-# FOOTER
-# -----------------------------
-st.markdown("---")
-st.markdown("🔐 Built with AI for Cybersecurity Threat Detection | Student Project")
+    st.plotly_chart(px.line(line_df, x="Time", y="Threat Count"),
+                    use_container_width=True)
+
+    st.success("✅ Detection Completed + Graphs Displayed!")
+    # AI Cybersecurity Threat Detection Project
