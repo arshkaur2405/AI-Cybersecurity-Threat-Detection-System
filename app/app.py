@@ -92,3 +92,4 @@ if st.button("▶ Run Detection"):
 
     st.success("✅ Detection Completed + Graphs Displayed!")
     # AI Cybersecurity Threat Detection Project
+    # This is the main Streamlit app for the AI Cybersecurity Threat Detection project. It loads the trained model, processes a sample of the test dataset, and visualizes the results with interactive charts.
